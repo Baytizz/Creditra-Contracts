@@ -4,6 +4,11 @@
 //! and calculating the weighted median value subject to a quorum threshold.
 
 use crate::auth::require_admin_auth;
+use crate::events::{
+    publish_oracle_added_event, publish_oracle_quorum_threshold_set_event,
+    publish_oracle_removed_event, publish_oracle_reporting_window_set_event,
+    publish_oracle_value_reported_event,
+};
 use crate::types::ContractError;
 use soroban_sdk::{contracttype, Address, Env, Vec};
 
@@ -61,7 +66,10 @@ pub fn add_oracle(env: Env, oracle: Address, weight: u32) {
 
     env.storage()
         .instance()
-        .set(&OracleDataKey::OracleWeight(oracle), &weight);
+        .set(&OracleDataKey::OracleWeight(oracle.clone()), &weight);
+
+    // Emit event
+    publish_oracle_added_event(&env, &oracle, weight);
 }
 
 /// Removes an oracle from the registry.
@@ -89,7 +97,10 @@ pub fn remove_oracle(env: Env, oracle: Address) {
             .remove(&OracleDataKey::OracleReport(oracle.clone()));
         env.storage()
             .instance()
-            .remove(&OracleDataKey::OracleReport(oracle));
+            .remove(&OracleDataKey::OracleReport(oracle.clone()));
+
+        // Emit event
+        publish_oracle_removed_event(&env, &oracle);
     } else {
         env.panic_with_error(ContractError::OracleNotFound);
     }
@@ -102,6 +113,9 @@ pub fn set_quorum_threshold(env: Env, threshold: u32) {
     env.storage()
         .instance()
         .set(&OracleDataKey::QuorumThreshold, &threshold);
+
+    // Emit event
+    publish_oracle_quorum_threshold_set_event(&env, threshold);
 }
 
 /// Returns the configured registry quorum threshold, if any.
@@ -132,6 +146,9 @@ pub fn set_reporting_window(env: Env, window_seconds: u64) {
     env.storage()
         .instance()
         .set(&OracleDataKey::ReportingWindow, &window_seconds);
+
+    // Emit event
+    publish_oracle_reporting_window_set_event(&env, window_seconds);
 }
 
 /// Oracles report their observed value.
@@ -159,11 +176,14 @@ pub fn report_value(env: Env, oracle: Address, value: u128) {
         timestamp: env.ledger().timestamp(),
     };
 
-    let key = OracleDataKey::OracleReport(oracle);
+    let key = OracleDataKey::OracleReport(oracle.clone());
     env.storage()
         .persistent()
         .set(&key, &report);
     crate::storage::bump_persistent_ttl(&env, &key);
+
+    // Emit event
+    publish_oracle_value_reported_event(&env, &oracle, value);
 }
 
 /// Computes the weighted median of the latest fresh reports from approved oracles.

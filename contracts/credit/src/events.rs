@@ -832,3 +832,104 @@ pub fn publish_oracle_quorum_price_set_event(env: &Env, price: i128, quorum_k: u
     );
 }
 
+// ── Oracle registry events ────────────────────────────────────────────────────
+
+/// Emitted when an oracle is added to the registry or its weight is updated.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct OracleAddedEvent {
+    pub oracle: Address,
+    pub weight: u32,
+    pub timestamp: u64,
+}
+
+/// Emitted when an oracle is removed from the registry.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct OracleRemovedEvent {
+    pub oracle: Address,
+    pub timestamp: u64,
+}
+
+/// Emitted when the quorum threshold is set or updated.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct OracleQuorumThresholdSetEvent {
+    pub threshold: u32,
+    pub timestamp: u64,
+}
+
+/// Emitted when the reporting window is set or updated.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct OracleReportingWindowSetEvent {
+    pub window_seconds: u64,
+    pub timestamp: u64,
+}
+
+/// Emitted when an oracle reports a price value.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct OracleValueReportedEvent {
+    pub oracle: Address,
+    pub value: u128,
+    pub timestamp: u64,
+}
+
+/// Publish an oracle added event.
+pub fn publish_oracle_added_event(env: &Env, oracle: &Address, weight: u32) {
+    env.events().publish(
+        (symbol_short!("credit"), Symbol::new(env, "orc_add")),
+        OracleAddedEvent {
+            oracle: oracle.clone(),
+            weight,
+            timestamp: env.ledger().timestamp(),
+        },
+    );
+}
+
+/// Publish an oracle removed event.
+pub fn publish_oracle_removed_event(env: &Env, oracle: &Address) {
+    env.events().publish(
+        (symbol_short!("credit"), Symbol::new(env, "orc_rmv")),
+        OracleRemovedEvent {
+            oracle: oracle.clone(),
+            timestamp: env.ledger().timestamp(),
+        },
+    );
+}
+
+/// Publish an oracle quorum threshold set event.
+pub fn publish_oracle_quorum_threshold_set_event(env: &Env, threshold: u32) {
+    env.events().publish(
+        (symbol_short!("credit"), Symbol::new(env, "orc_qthrs")),
+        OracleQuorumThresholdSetEvent {
+            threshold,
+            timestamp: env.ledger().timestamp(),
+        },
+    );
+}
+
+/// Publish an oracle reporting window set event.
+pub fn publish_oracle_reporting_window_set_event(env: &Env, window_seconds: u64) {
+    env.events().publish(
+        (symbol_short!("credit"), Symbol::new(env, "orc_win")),
+        OracleReportingWindowSetEvent {
+            window_seconds,
+            timestamp: env.ledger().timestamp(),
+        },
+    );
+}
+
+/// Publish an oracle value reported event.
+pub fn publish_oracle_value_reported_event(env: &Env, oracle: &Address, value: u128) {
+    env.events().publish(
+        (symbol_short!("credit"), Symbol::new(env, "orc_rpt")),
+        OracleValueReportedEvent {
+            oracle: oracle.clone(),
+            value,
+            timestamp: env.ledger().timestamp(),
+        },
+    );
+}
+

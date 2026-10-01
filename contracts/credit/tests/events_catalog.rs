@@ -344,26 +344,12 @@ fn treasury_withdrawal_executed_shape() {
                 amount: 500,
                 executor: admin.clone(),
                 executed_at: 200,
+                remaining_balance: 25,
             },
         );
     });
     assert_eq!(first_topic(&env), symbol_short!("credit"));
     assert_eq!(second_topic(&env), Symbol::new(&env, "tre_exec"));
-    let (env, _borrower, admin) = env_and_addresses();
-
-    publish_treasury_withdrawal_executed(
-        &env,
-        TreasuryWithdrawalExecutedEvent {
-            recipient: admin.clone(),
-            amount: 500,
-            executor: admin.clone(),
-            executed_at: 200,
-            remaining_balance: 25,
-        },
-    );
-
-    assert_eq!(first_topic(&env, 0), symbol_short!("credit"));
-    assert_eq!(second_topic(&env, 0), Symbol::new(&env, "tre_exec"));
 }
 
 #[test]
@@ -466,6 +452,8 @@ fn default_liquidation_settled_shape() {
                 borrower: borrower.clone(),
                 settlement_id: Symbol::new(&env, "auction_1"),
                 recovered_amount: 500,
+                interest_recovered: 500,
+                principal_recovered: 0,
                 remaining_utilized_amount: 500,
                 status: CreditStatus::Closed,
                 close_factor_bps: 5000,
@@ -474,24 +462,6 @@ fn default_liquidation_settled_shape() {
     });
     assert_eq!(first_topic(&env), symbol_short!("credit"));
     assert_eq!(second_topic(&env), Symbol::new(&env, "liq_setl"));
-    let (env, borrower, _admin) = env_and_addresses();
-
-    publish_default_liquidation_settled_event(
-        &env,
-        DefaultLiquidationSettledEvent {
-            borrower: borrower.clone(),
-            settlement_id: Symbol::new(&env, "auction-1"),
-            recovered_amount: 500,
-            interest_recovered: 500,
-            principal_recovered: 0,
-            remaining_utilized_amount: 500,
-            status: CreditStatus::Closed,
-            close_factor_bps: 5000,
-        },
-    );
-
-    assert_eq!(first_topic(&env, 0), symbol_short!("credit"));
-    assert_eq!(second_topic(&env, 0), Symbol::new(&env, "liq_setl"));
 }
 
 // ── Attestation events ────────────────────────────────────────────────────────
@@ -577,6 +547,63 @@ fn raw_value_events_shape() {
     }
 }
 
+// ── Oracle registry event shape tests ─────────────────────────────────────────
+
+#[test]
+fn oracle_added_shape() {
+    let (env, contract_id, _borrower, admin) = setup();
+    let _ = &admin;
+    env.as_contract(&contract_id, || {
+        publish_oracle_added_event(&env, &admin, 100);
+    });
+    assert_eq!(first_topic(&env), symbol_short!("credit"));
+    assert_eq!(second_topic(&env), Symbol::new(&env, "orc_add"));
+}
+
+#[test]
+fn oracle_removed_shape() {
+    let (env, contract_id, _borrower, admin) = setup();
+    let _ = &admin;
+    env.as_contract(&contract_id, || {
+        publish_oracle_removed_event(&env, &admin);
+    });
+    assert_eq!(first_topic(&env), symbol_short!("credit"));
+    assert_eq!(second_topic(&env), Symbol::new(&env, "orc_rmv"));
+}
+
+#[test]
+fn oracle_quorum_threshold_set_shape() {
+    let (env, contract_id, _borrower, admin) = setup();
+    let _ = &admin;
+    env.as_contract(&contract_id, || {
+        publish_oracle_quorum_threshold_set_event(&env, 50);
+    });
+    assert_eq!(first_topic(&env), symbol_short!("credit"));
+    assert_eq!(second_topic(&env), Symbol::new(&env, "orc_qthrs"));
+}
+
+#[test]
+fn oracle_reporting_window_set_shape() {
+    let (env, contract_id, _borrower, admin) = setup();
+    let _ = &admin;
+    env.as_contract(&contract_id, || {
+        publish_oracle_reporting_window_set_event(&env, 3600);
+    });
+    assert_eq!(first_topic(&env), symbol_short!("credit"));
+    assert_eq!(second_topic(&env), Symbol::new(&env, "orc_win"));
+}
+
+#[test]
+fn oracle_value_reported_shape() {
+    let (env, contract_id, _borrower, admin) = setup();
+    let _ = &admin;
+    env.as_contract(&contract_id, || {
+        publish_oracle_value_reported_event(&env, &admin, 1_000_000);
+    });
+    assert_eq!(first_topic(&env), symbol_short!("credit"));
+    assert_eq!(second_topic(&env), Symbol::new(&env, "orc_rpt"));
+}
+
 // ── Auction contract events ───────────────────────────────────────────────────
 
 #[test]
@@ -659,7 +686,7 @@ fn all_credit_event_structs_instantiate() {
     let _ = DrawnEvent { borrower: borrower.clone(), amount: 100, new_utilized_amount: 100, timestamp: 0 };
     let _ = DrawnEventV2 { borrower: borrower.clone(), recipient: borrower.clone(), reserve_source: admin.clone(), amount: 100, new_utilized_amount: 100, timestamp: 50 };
     let _ = InterestAccruedEvent { borrower: borrower.clone(), accrued_amount: 5, new_utilized_amount: 105 };
-    let _ = DefaultLiquidationSettledEvent { borrower: borrower.clone(), settlement_id: Symbol::new(&env, "s1"), recovered_amount: 20, remaining_utilized_amount: 80, status: CreditStatus::Defaulted, close_factor_bps: 5000 };
+    let _ = DefaultLiquidationSettledEvent { borrower: borrower.clone(), settlement_id: Symbol::new(&env, "s1"), recovered_amount: 20, interest_recovered: 10, principal_recovered: 10, remaining_utilized_amount: 80, status: CreditStatus::Defaulted, close_factor_bps: 5000 };
     let _ = AdminRotationProposedEvent { proposed_admin: admin.clone(), accept_after: 200 };
     let _ = AdminRotationAcceptedEvent { new_admin: admin.clone() };
     let _ = RiskParametersUpdatedEvent { borrower: borrower.clone(), credit_limit: 1_000, interest_rate_bps: 300, risk_score: 50 };
@@ -679,166 +706,13 @@ fn all_credit_event_structs_instantiate() {
     let _ = ContractUpgradedEvent { old_wasm_hash: BytesN::from_array(&env, &[0x11; 32]), new_wasm_hash: BytesN::from_array(&env, &[0x22; 32]) };
     let _ = LateFeeChargedEvent { borrower: borrower.clone(), fee: 50, installment_index: 3 };
     let _ = TreasuryWithdrawalProposedEvent { recipient: admin.clone(), amount: 1_000, proposer: admin.clone(), proposed_at: 100, execute_after: 1_000 };
-    let _ = TreasuryWithdrawalExecutedEvent { recipient: admin.clone(), amount: 500, executor: admin.clone(), executed_at: 200 };
+    let _ = TreasuryWithdrawalExecutedEvent { recipient: admin.clone(), amount: 500, executor: admin.clone(), executed_at: 200, remaining_balance: 25 };
     let _ = AttestationBatchCommittedEvent { borrower: borrower.clone(), merkle_root: BytesN::from_array(&env, &[0x33; 32]), count: 10 };
-    let (env, borrower, admin) = env_and_addresses();
-
-    let _ = CreditLineEvent {
-        borrower: borrower.clone(),
-        status: CreditStatus::Active,
-        credit_limit: 100,
-        interest_rate_bps: 100,
-        risk_score: 10,
-    };
-    let _ = RepaymentEvent {
-        borrower: borrower.clone(),
-        amount: 50,
-        new_utilized_amount: 50,
-    };
-    let _ = DrawnEvent {
-        borrower: borrower.clone(),
-        amount: 100,
-        new_utilized_amount: 100,
-    };
-    let _ = DrawnEventV2 {
-        borrower: borrower.clone(),
-        recipient: borrower.clone(),
-        reserve_source: admin.clone(),
-        amount: 100,
-        new_utilized_amount: 100,
-        timestamp: 50,
-    };
-    let _ = InterestAccruedEvent {
-        borrower: borrower.clone(),
-        accrued_amount: 5,
-        new_utilized_amount: 105,
-    };
-    let _ = DefaultLiquidationSettledEvent {
-        borrower: borrower.clone(),
-        settlement_id: Symbol::new(&env, "s1"),
-        recovered_amount: 20,
-        interest_recovered: 20,
-        principal_recovered: 0,
-        remaining_utilized_amount: 80,
-        status: CreditStatus::Defaulted,
-        close_factor_bps: 5000,
-    };
-    let _ = AdminRotationProposedEvent {
-        proposed_admin: admin.clone(),
-        accept_after: 200,
-    };
-    let _ = AdminRotationAcceptedEvent {
-        new_admin: admin.clone(),
-    };
-    let _ = RiskParametersUpdatedEvent {
-        borrower: borrower.clone(),
-        credit_limit: 1_000,
-        interest_rate_bps: 300,
-        risk_score: 50,
-    };
-    let _ = DrawReversedEvent {
-        borrower: borrower.clone(),
-        amount: 100,
-        original_ts: 10,
-        reason_code: 1,
-        new_utilized_amount: 0,
-        timestamp: 20,
-        admin: admin.clone(),
-        accounting_only: false,
-    };
-    let _ = DrawsFrozenEvent {
-        frozen: true,
-        reason: FreezeReason::LiquidityReserve,
-    };
-    let _ = CreditLineFreezeEvent {
-        borrower: borrower.clone(),
-        reason: FreezeReason::AdminAction,
-        frozen: true,
-        ledger: 100,
-    };
-    let _ = BorrowerBlockedEvent {
-        borrower: borrower.clone(),
-        blocked: true,
-        ledger: 100,
-    };
-    let _ = BorrowerFrozenEvent {
-        borrower: borrower.clone(),
-        frozen_until: 1_000_000,
-        ledger: 100,
-    };
-    let _ = FeeAccruedEvent {
-        borrower: borrower.clone(),
-        fee_amount: 10,
-        treasury_amount: 6,
-        bounty_amount: 4,
-        new_treasury_balance: 106,
-        new_bounty_balance: 204,
-    };
-    let _ = PenaltyRateEnteredEvent {
-        borrower: borrower.clone(),
-        base_rate_bps: 500,
-        penalty_surcharge_bps: 200,
-        effective_rate_bps: 700,
-    };
-    let _ = PenaltyRateExitedEvent {
-        borrower: borrower.clone(),
-        previous_rate_bps: 700,
-        new_rate_bps: 500,
-    };
-    let _ = GraceWaiverReceiptEvent {
-        borrower: borrower.clone(),
-        waived_amount: 5,
-        mode: creditra_credit::types::GraceWaiverMode::FullWaiver,
-    };
-    let _ = CollateralDepositedEvent {
-        borrower: borrower.clone(),
-        amount: 500,
-        new_balance: 500,
-    };
-    let _ = CollateralWithdrawnEvent {
-        borrower: borrower.clone(),
-        amount: 200,
-        new_balance: 300,
-    };
-    let _ = CollateralPartialReleasedEvent {
-        borrower: borrower.clone(),
-        amount_released: 200,
-        new_balance: 300,
-        health_factor_bps: 12_000,
-    };
-    let _ = TokenRescuedEvent {
-        token: admin.clone(),
-        recipient: admin.clone(),
-        amount: 100,
-    };
-    let _ = ContractUpgradedEvent {
-        old_wasm_hash: BytesN::new(&env, &[0x11; 32]),
-        new_wasm_hash: BytesN::new(&env, &[0x22; 32]),
-    };
-    let _ = LateFeeChargedEvent {
-        borrower: borrower.clone(),
-        fee: 50,
-        installment_index: 3,
-    };
-    let _ = TreasuryWithdrawalProposedEvent {
-        recipient: admin.clone(),
-        amount: 1_000,
-        proposer: admin.clone(),
-        proposed_at: 100,
-        execute_after: 1_000,
-    };
-    let _ = TreasuryWithdrawalExecutedEvent {
-        recipient: admin.clone(),
-        amount: 500,
-        executor: admin.clone(),
-        executed_at: 200,
-        remaining_balance: 25,
-    };
-    let _ = AttestationBatchCommittedEvent {
-        borrower: borrower.clone(),
-        merkle_root: BytesN::new(&env, &[0x33; 32]),
-        count: 10,
-    };
+    let _ = OracleAddedEvent { oracle: admin.clone(), weight: 100, timestamp: 1000 };
+    let _ = OracleRemovedEvent { oracle: admin.clone(), timestamp: 1000 };
+    let _ = OracleQuorumThresholdSetEvent { threshold: 50, timestamp: 1000 };
+    let _ = OracleReportingWindowSetEvent { window_seconds: 3600, timestamp: 1000 };
+    let _ = OracleValueReportedEvent { oracle: admin.clone(), value: 1_000_000, timestamp: 1000 };
 }
 
 #[test]

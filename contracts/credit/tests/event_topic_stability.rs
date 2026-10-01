@@ -5,9 +5,12 @@ use creditra_credit::events::{
     publish_borrower_blocked_event, publish_default_liquidation_settled_event,
     publish_draw_reversed_event, publish_drawn_event, publish_draws_frozen_event,
     publish_grace_waiver_receipt_event, publish_interest_accrued_event,
-    publish_rate_formula_config_event, publish_repayment_event, publish_risk_parameters_updated,
-    AdminRotationAcceptedEvent, AdminRotationProposedEvent, DefaultLiquidationSettledEvent,
-    DrawReversedEvent, InterestAccruedEvent, RepaymentEvent, RiskParametersUpdatedEvent,
+    publish_oracle_added_event, publish_oracle_quorum_threshold_set_event,
+    publish_oracle_removed_event, publish_oracle_reporting_window_set_event,
+    publish_oracle_value_reported_event, publish_rate_formula_config_event,
+    publish_repayment_event, publish_risk_parameters_updated, AdminRotationAcceptedEvent,
+    AdminRotationProposedEvent, DefaultLiquidationSettledEvent, DrawReversedEvent,
+    InterestAccruedEvent, RepaymentEvent, RiskParametersUpdatedEvent,
 };
 use creditra_credit::types::CreditStatus;
 use creditra_credit::{Credit, CreditClient};
@@ -94,6 +97,14 @@ fn test_event_topics_stability() {
         creditra_credit::types::GraceWaiverMode::FullWaiver,
     );
 
+    // Oracle registry events
+    let oracle = Address::generate(&env);
+    publish_oracle_added_event(&env, &oracle, 100);
+    publish_oracle_removed_event(&env, &oracle);
+    publish_oracle_quorum_threshold_set_event(&env, 50);
+    publish_oracle_reporting_window_set_event(&env, 3600);
+    publish_oracle_value_reported_event(&env, &oracle, 1000000);
+
     let all_events = env.events().all();
 
     // Assert topic pairs
@@ -131,4 +142,11 @@ fn test_event_topics_stability() {
     );
     assert_topic(10, "credit", "rate_form");
     assert_topic(11, "credit", "grace_wv");
+
+    // Oracle registry event topics
+    assert_topic(12, "credit", "orc_add");
+    assert_topic(13, "credit", "orc_rmv");
+    assert_topic(14, "credit", "orc_qthrs");
+    assert_topic(15, "credit", "orc_win");
+    assert_topic(16, "credit", "orc_rpt");
 }

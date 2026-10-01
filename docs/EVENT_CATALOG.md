@@ -176,6 +176,20 @@ namespace unless noted.
 | `"orc_qcfg"` | `(u32, u32, u64)` | `(min_quorum_k, max_deviation_bps, max_age_seconds)` | `publish_oracle_quorum_config_set_event` |
 | `"orc_qprc"` | `(i128, u32, u64)` | `(price, quorum_k, timestamp)` | `publish_oracle_quorum_price_set_event` |
 
+### 1.12 Oracle registry events
+
+| Second topic | Payload struct | Fields (in order) | Version added |
+|---|---|---|---|
+| `"orc_add"` | `OracleAddedEvent` | `oracle: Address`, `weight: u32`, `timestamp: u64` | 1.1.0 |
+| `"orc_rmv"` | `OracleRemovedEvent` | `oracle: Address`, `timestamp: u64` | 1.1.0 |
+| `"orc_qthrs"` | `OracleQuorumThresholdSetEvent` | `threshold: u32`, `timestamp: u64` | 1.1.0 |
+| `"orc_win"` | `OracleReportingWindowSetEvent` | `window_seconds: u64`, `timestamp: u64` | 1.1.0 |
+| `"orc_rpt"` | `OracleValueReportedEvent` | `oracle: Address`, `value: u128`, `timestamp: u64` | 1.1.0 |
+
+Emitted by `add_oracle`, `remove_oracle`, `set_quorum_threshold`,
+`set_reporting_window`, and `report_value` so indexers can audit the
+weighted-median oracle registry (Issue #1264).
+
 ---
 
 ## 2. Accrual Contract Events
@@ -258,6 +272,11 @@ All defined in `contracts/credit/src/types.rs`:
 | `publish_oracle_price_accepted_event` | `("credit", "orc_price")` |
 | `publish_oracle_quorum_config_set_event` | `("credit", "orc_qcfg")` |
 | `publish_oracle_quorum_price_set_event` | `("credit", "orc_qprc")` |
+| `publish_oracle_added_event` | `("credit", "orc_add")` |
+| `publish_oracle_removed_event` | `("credit", "orc_rmv")` |
+| `publish_oracle_quorum_threshold_set_event` | `("credit", "orc_qthrs")` |
+| `publish_oracle_reporting_window_set_event` | `("credit", "orc_win")` |
+| `publish_oracle_value_reported_event` | `("credit", "orc_rpt")` |
 | `publish_risk_parameters_updated` | `("credit", "risk_upd")` |
 | `publish_bid_refunded_event` | `("BID_RFDN", "auction")` |
 | `publish_auction_closed_event` | `("AUC_CLOSE", "auction")` |
